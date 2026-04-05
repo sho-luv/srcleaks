@@ -9,25 +9,20 @@ Set Padding 10
 Set Theme "Dracula"
 Set TypingSpeed 40ms
 
-# Show help
-Type "srcleaks --help"
-Enter
-Sleep 3s
-
-# Scan a clean npm package
-Type "srcleaks left-pad"
-Enter
-Sleep 5s
-
-# Scan a package with source maps — shows proof
+# Scan a single npm package
 Type "srcleaks socket.io-client"
 Enter
-Sleep 12s
+Sleep 8s
+
+# Scan an npm org
+Type "srcleaks --org anthropic-ai"
+Enter
+Sleep 25s
 
 # Scan a live website
 Type "srcleaks https://sholuv.net"
 Enter
-Sleep 6s
+Sleep 10s
 
 # Done
 Sleep 2s
