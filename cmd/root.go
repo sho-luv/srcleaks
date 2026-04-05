@@ -213,7 +213,7 @@ func runAll(args []string) error {
 		results := scanNpmBatch(allDeps)
 		printBatchResults(results, jsonOutput)
 		for _, r := range results {
-			if r.Result != nil && shouldFail(r.Result.Status) {
+			if r.Result != nil && !r.Result.IsPublicRepo && shouldFail(r.Result.Status) {
 				hadFindings = true
 			}
 		}
@@ -299,27 +299,32 @@ func scanNpmBatch(deps map[string]string) []batchEntry {
 					cyan, reset, red, reset, spec.name, dim, err.Error(), reset)
 			} else {
 				entry.Result = result
-				statusClr := statusColor(result.Status)
 				icon := green + "✓" + reset
+				displayStatus := result.Status
+				statusClr := statusColor(result.Status)
 				extra := ""
-				switch result.Status {
-				case "EXPOSED":
-					icon = red + "✗" + reset
-					extra = fmt.Sprintf("  ~%s lines recoverable",
-						scanner.FormatNumber(result.TotalLinesExposed))
-					if result.IsPublicRepo {
-						extra += fmt.Sprintf("  %s(open source)%s", dim, reset)
-					}
-				case "LEAK":
-					icon = yellow + "!" + reset
+
+				// Open source packages with source maps aren't real leaks
+				if result.IsPublicRepo && result.Status != "CLEAN" {
+					icon = dim + "·" + reset
+					displayStatus = "CLEAN"
+					statusClr = boldGrn
 					maps := result.MapFileCount + result.InlineMapCount
-					extra = fmt.Sprintf("  %d .map file(s)", maps)
-					if result.IsPublicRepo {
-						extra += fmt.Sprintf("  %s(open source)%s", dim, reset)
+					extra = fmt.Sprintf("  %s(open source, %d .map file(s) — not a leak)%s", dim, maps, reset)
+				} else {
+					switch result.Status {
+					case "EXPOSED":
+						icon = red + "✗" + reset
+						extra = fmt.Sprintf("  ~%s lines recoverable",
+							scanner.FormatNumber(result.TotalLinesExposed))
+					case "LEAK":
+						icon = yellow + "!" + reset
+						maps := result.MapFileCount + result.InlineMapCount
+						extra = fmt.Sprintf("  %d .map file(s)", maps)
 					}
 				}
 				fmt.Printf("%s│%s  %s %-35s %s%-8s%s%s\n",
-					cyan, reset, icon, spec.name, statusClr, result.Status, reset, extra)
+					cyan, reset, icon, spec.name, statusClr, displayStatus, reset, extra)
 			}
 			results[idx] = entry
 		}(i, s)
@@ -376,10 +381,14 @@ func printBatchResults(results []batchEntry, asJSON bool) {
 		return
 	}
 
-	var clean, leak, exposed, errCount int
+	var clean, leak, exposed, openSrc, errCount int
 	for _, r := range results {
 		if r.Error != "" {
 			errCount++
+			continue
+		}
+		if r.Result.IsPublicRepo && r.Result.Status != "CLEAN" {
+			openSrc++
 			continue
 		}
 		switch r.Result.Status {
@@ -395,7 +404,10 @@ func printBatchResults(results []batchEntry, asJSON bool) {
 	fmt.Printf("%s│%s\n", cyan, reset)
 	fmt.Printf("%s├─ Summary%s\n", boldCyn, reset)
 	fmt.Printf("%s│%s  Scanned:  %d\n", cyan, reset, len(results))
-	fmt.Printf("%s│%s  %s✓ Clean:   %d%s\n", cyan, reset, boldGrn, clean, reset)
+	fmt.Printf("%s│%s  %s✓ Clean:   %d%s\n", cyan, reset, boldGrn, clean+openSrc, reset)
+	if openSrc > 0 {
+		fmt.Printf("%s│%s    %s↳ %d open source (source maps shipped but not a risk)%s\n", cyan, reset, dim, openSrc, reset)
+	}
 	if leak > 0 {
 		fmt.Printf("%s│%s  %s⚠ Leak:    %d%s  %s(.map files, no source code)%s\n", cyan, reset, boldYlw, leak, reset, dim, reset)
 	}
