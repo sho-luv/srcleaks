@@ -67,6 +67,7 @@ const (
 	kindURL     targetKind = iota
 	kindNpm
 	kindBatch   // package.json or directory containing one
+	kindList    // text file with one target per line
 )
 
 func classify(target string) targetKind {
@@ -89,6 +90,9 @@ func classify(target string) targetKind {
 			}
 		} else if strings.HasSuffix(target, "package.json") || strings.HasSuffix(target, ".json") {
 			return kindBatch
+		} else if info.Mode().IsRegular() {
+			// Any other regular file — treat as a target list (one per line)
+			return kindList
 		}
 	}
 
@@ -96,17 +100,48 @@ func classify(target string) targetKind {
 	return kindNpm
 }
 
+// readTargetList reads a file with one target per line, skipping blank lines and comments.
+func readTargetList(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var targets []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		targets = append(targets, line)
+	}
+	return targets, nil
+}
+
 func runAll(args []string) error {
 	var urls []string
 	var npms []string
 	var batches []string
 
+	// Expand all args, including target list files
+	var expanded []string
 	for _, arg := range args {
+		if classify(arg) == kindList {
+			targets, err := readTargetList(arg)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%s✗ %s: %v%s\n", red, arg, err, reset)
+				continue
+			}
+			expanded = append(expanded, targets...)
+		} else {
+			expanded = append(expanded, arg)
+		}
+	}
+
+	for _, arg := range expanded {
 		switch classify(arg) {
 		case kindURL:
 			urls = append(urls, arg)
 		case kindBatch:
-			// Resolve to actual package.json path
 			info, _ := os.Stat(arg)
 			if info != nil && info.IsDir() {
 				batches = append(batches, filepath.Join(arg, "package.json"))
