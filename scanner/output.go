@@ -36,7 +36,7 @@ func statusColor(status string) string {
 	}
 }
 
-func PrintResult(r *NpmResult, asJSON bool) {
+func PrintResult(r *NpmResult, asJSON bool, showProof bool) {
 	if asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -94,8 +94,10 @@ func PrintResult(r *NpmResult, asJSON bool) {
 		}
 	}
 
-	// Proof section — show recovered source code
-	printNpmProof(r)
+	// Proof section — show recovered source code (only with --proof)
+	if showProof {
+		printNpmProof(r)
+	}
 
 	fmt.Printf("%s│%s\n", cyan, reset)
 	fmt.Printf("%s└─%s\n", cyan, reset)
@@ -139,7 +141,7 @@ func printNpmProof(r *NpmResult) {
 	}
 }
 
-func PrintURLResult(r *URLResult, asJSON bool) {
+func PrintURLResult(r *URLResult, asJSON bool, showProof bool) {
 	if asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -201,8 +203,10 @@ func PrintURLResult(r *URLResult, asJSON bool) {
 			}
 		}
 
-		// Print proof from URL results
-		printURLProof(exposed)
+		// Print proof from URL results (only with --proof)
+		if showProof {
+			printURLProof(exposed)
+		}
 	}
 
 	fmt.Printf("%s│%s\n", cyan, reset)

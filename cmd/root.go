@@ -16,6 +16,7 @@ import (
 
 var (
 	jsonOutput  bool
+	showProof   bool
 	threshold   int
 	concurrency int
 )
@@ -45,6 +46,7 @@ All checks run automatically. No flags needed.`,
 
 func init() {
 	rootCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output results as JSON")
+	rootCmd.Flags().BoolVar(&showProof, "proof", false, "Show recovered source code as verification")
 	rootCmd.Flags().IntVar(&threshold, "threshold", 1, "Minimum risk score to trigger exit code 1 (0-10)")
 	rootCmd.Flags().IntVarP(&concurrency, "concurrency", "c", 5, "Parallel npm package scans")
 }
@@ -120,7 +122,7 @@ func runAll(args []string) error {
 			fmt.Fprintf(os.Stderr, "%s✗ %s: %v%s\n", red, u, err, reset)
 			continue
 		}
-		scanner.PrintURLResult(result, jsonOutput)
+		scanner.PrintURLResult(result, jsonOutput, showProof)
 		if result.MapsExposed > 0 {
 			hadFindings = true
 		}
@@ -153,11 +155,11 @@ func runAll(args []string) error {
 				hadFindings = true
 			}
 		}
-		// Print full details with proof for packages that have findings
+		// Print full details for packages that have findings
 		if !jsonOutput {
 			for _, r := range results {
 				if r.Result != nil && r.Result.Status != "CLEAN" {
-					scanner.PrintResult(r.Result, false)
+					scanner.PrintResult(r.Result, false, showProof)
 				}
 			}
 		}
