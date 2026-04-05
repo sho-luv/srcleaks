@@ -37,11 +37,28 @@ srcleaks ./package.json
 # Point it at a directory — it finds the package.json
 srcleaks .
 
+# Scan a file with one target per line
+srcleaks targets.txt
+
+# Scan all packages from an npm org
+srcleaks --org anthropic-ai
+srcleaks --org openai --org google
+
 # Mix and match
 srcleaks https://example.com express ./package.json
 ```
 
 No subcommands. No flags to remember. It runs everything automatically.
+
+## Statuses
+
+| Status | Meaning |
+|--------|---------|
+| **EXPOSED** | Source code is recoverable (`sourcesContent` present) |
+| **LEAK** | `.map` files found but no source code (reveals paths/structure) |
+| **CLEAN** | Nothing found |
+
+Open source packages with source maps are automatically marked as CLEAN with a note — if the code is already public, shipping `.map` files is a packaging concern, not a security issue.
 
 ## What It Detects
 
@@ -49,7 +66,7 @@ No subcommands. No flags to remember. It runs everything automatically.
 - `.map` files shipped in the tarball
 - Inline base64 source maps in JS files
 - `sourcesContent` fields containing original source code
-- Risk scoring (0-10) with CLEAN / WARNING / CRITICAL ratings
+- Open source detection (checks if repo is public)
 
 ### Live websites (`srcleaks <url>`)
 - `sourceMappingURL` comments in JS files
@@ -65,17 +82,20 @@ No subcommands. No flags to remember. It runs everything automatically.
 
 ## CI Usage
 
-srcleaks exits with code 1 when findings exceed the threshold:
+srcleaks exits with code 1 when findings are detected:
 
 ```bash
-# Exit 1 if any source maps found (default)
+# Exit 1 on EXPOSED (default)
 srcleaks my-package
 
-# Exit 1 only on WARNING or higher (risk >= 4)
-srcleaks my-package --threshold 4
+# Exit 1 on EXPOSED or LEAK
+srcleaks my-package --fail-on leak
 
 # JSON output for parsing
 srcleaks my-package --json
+
+# Verify findings with recovered source code
+srcleaks my-package --proof
 ```
 
 ## Flags
@@ -83,8 +103,37 @@ srcleaks my-package --json
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--json` | false | Output results as JSON |
-| `--threshold` | 1 | Minimum risk score to trigger exit code 1 |
+| `--proof` | false | Show recovered source code as verification |
+| `--fail-on` | `exposed` | Exit 1 when status matches: `exposed` or `leak` |
+| `--org` | | Scan all npm packages from an org (e.g. `anthropic-ai`) |
 | `-c, --concurrency` | 5 | Parallel npm package scans |
+
+## Finding Targets
+
+These tools are useful for discovering packages to scan:
+
+| Tool | What it does |
+|------|-------------|
+| [npmjs.com](https://www.npmjs.com) | Browse and search npm packages |
+| [npmtrends.com](https://npmtrends.com) | Compare download trends across packages |
+| [npm-stat.com](https://npm-stat.com) | Download charts and statistics over time |
+| [socket.dev/npm/category/popular](https://socket.dev/npm/category/popular) | Top 250 most downloaded packages |
+
+### npm Registry API
+
+```bash
+# Search for packages
+curl -s "https://registry.npmjs.org/-/v1/search?text=<query>&size=10"
+
+# Weekly download count
+curl -s "https://api.npmjs.org/downloads/point/last-week/<package>"
+
+# Bulk download stats (up to 128 packages)
+curl -s "https://api.npmjs.org/downloads/point/last-week/react,express,lodash"
+
+# Download history over a date range
+curl -s "https://api.npmjs.org/downloads/range/2025-01-01:2025-12-31/<package>"
+```
 
 ## Background
 
