@@ -157,6 +157,7 @@ func runAll(args []string) error {
 
 	// 1. URL scans
 	for _, u := range urls {
+		fmt.Printf("%sScanning %s...%s\n", dim, u, reset)
 		result, err := scanner.ScanURL(u, true) // always probe
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s✗ %s: %v%s\n", red, u, err, reset)

@@ -18,7 +18,7 @@ var (
 )
 
 var httpClient = &http.Client{
-	Timeout: 30 * time.Second,
+	Timeout: 10 * time.Second,
 }
 
 // ScanURL fetches a webpage and checks all its scripts for source maps.
