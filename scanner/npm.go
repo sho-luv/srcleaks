@@ -53,9 +53,8 @@ func ScanNpmPackage(spec string) (*NpmResult, error) {
 		return nil, fmt.Errorf("scanning tarball: %w", err)
 	}
 
-	// Score
-	result.RiskScore = scoreNpm(result)
-	result.Status = statusFromScore(result.RiskScore)
+	// Status
+	result.Status = classifyStatus(result)
 	result.Findings = buildFindings(result)
 
 	return result, nil
@@ -227,35 +226,16 @@ func scanTarball(tgzPath string, result *NpmResult) error {
 	return nil
 }
 
-func scoreNpm(r *NpmResult) int {
-	score := 0
-	if r.MapFileCount > 0 {
-		score += 3
-	}
-	if r.MapFileCount > 5 {
-		score += 1
-	}
-	if r.InlineMapCount > 0 {
-		score += 2
-	}
+// classifyStatus determines the status based on what was actually found.
+//   EXPOSED — sourcesContent present, original source code is recoverable
+//   LEAK    — .map files found but no sourcesContent (reveals paths/structure)
+//   CLEAN   — nothing found
+func classifyStatus(r *NpmResult) string {
 	if r.EmbeddedSrcCount > 0 {
-		score += 3
+		return "EXPOSED"
 	}
-	if r.TotalLinesExposed > 10000 {
-		score += 1
-	}
-	if score > 10 {
-		score = 10
-	}
-	return score
-}
-
-func statusFromScore(score int) string {
-	if score >= 7 {
-		return "CRITICAL"
-	}
-	if score >= 4 {
-		return "WARNING"
+	if r.MapFileCount > 0 || r.InlineMapCount > 0 {
+		return "LEAK"
 	}
 	return "CLEAN"
 }

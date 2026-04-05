@@ -25,9 +25,9 @@ const (
 
 func statusColor(status string) string {
 	switch status {
-	case "CRITICAL", "EXPOSED":
+	case "EXPOSED":
 		return boldRed
-	case "WARNING":
+	case "LEAK":
 		return boldYlw
 	case "CLEAN":
 		return boldGrn
@@ -50,7 +50,6 @@ func PrintResult(r *NpmResult, asJSON bool, showProof bool) {
 	fmt.Printf("%s│%s  Package:    %s%s%s\n", cyan, reset, bold, r.Package, reset)
 	fmt.Printf("%s│%s  Version:    %s\n", cyan, reset, r.Version)
 	fmt.Printf("%s│%s  Status:     %s%s%s\n", cyan, reset, statusColor(r.Status), r.Status, reset)
-	fmt.Printf("%s│%s  Risk Score: %s%d/10%s\n", cyan, reset, statusColor(r.Status), r.RiskScore, reset)
 	fmt.Printf("%s│%s\n", cyan, reset)
 	fmt.Printf("%s│%s  Files in package:  %d\n", cyan, reset, r.TotalFiles)
 	fmt.Printf("%s│%s  .map files:        %d\n", cyan, reset, r.MapFileCount)

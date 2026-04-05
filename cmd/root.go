@@ -17,11 +17,11 @@ import (
 var (
 	jsonOutput  bool
 	showProof   bool
-	threshold   int
+	failOn      string
 	concurrency int
 )
 
-// ExitCode is set when findings exceed the threshold.
+// ExitCode is set when findings are detected.
 var ExitCode int
 
 var rootCmd = &cobra.Command{
@@ -37,7 +37,12 @@ Just give it a target — it figures out the rest:
   srcleaks .                            Find package.json in current dir and scan it
   srcleaks https://example.com express  Mix and match — scan everything
 
-All checks run automatically. No flags needed.`,
+All checks run automatically. No flags needed.
+
+Statuses:
+  EXPOSED  Source code is recoverable (sourcesContent present)
+  LEAK     .map files found but no source code (reveals paths/structure)
+  CLEAN    Nothing found`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runAll(args)
@@ -47,7 +52,7 @@ All checks run automatically. No flags needed.`,
 func init() {
 	rootCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output results as JSON")
 	rootCmd.Flags().BoolVar(&showProof, "proof", false, "Show recovered source code as verification")
-	rootCmd.Flags().IntVar(&threshold, "threshold", 1, "Minimum risk score to trigger exit code 1 (0-10)")
+	rootCmd.Flags().StringVar(&failOn, "fail-on", "exposed", "Exit 1 when status matches: exposed or leak")
 	rootCmd.Flags().IntVarP(&concurrency, "concurrency", "c", 5, "Parallel npm package scans")
 }
 
@@ -151,7 +156,7 @@ func runAll(args []string) error {
 		results := scanNpmBatch(allDeps)
 		printBatchResults(results, jsonOutput)
 		for _, r := range results {
-			if r.Result != nil && r.Result.RiskScore > 0 && r.Result.RiskScore >= threshold {
+			if r.Result != nil && shouldFail(r.Result.Status) {
 				hadFindings = true
 			}
 		}
@@ -240,13 +245,15 @@ func scanNpmBatch(deps map[string]string) []batchEntry {
 				statusClr := statusColor(result.Status)
 				icon := green + "✓" + reset
 				extra := ""
-				if result.Status != "CLEAN" {
+				switch result.Status {
+				case "EXPOSED":
 					icon = red + "✗" + reset
+					extra = fmt.Sprintf("  ~%s lines of source code recoverable",
+						scanner.FormatNumber(result.TotalLinesExposed))
+				case "LEAK":
+					icon = yellow + "!" + reset
 					maps := result.MapFileCount + result.InlineMapCount
-					extra = fmt.Sprintf("  %d maps", maps)
-					if result.EmbeddedSrcCount > 0 {
-						extra += fmt.Sprintf(", ~%s lines exposed", scanner.FormatNumber(result.TotalLinesExposed))
-					}
+					extra = fmt.Sprintf("  %d .map file(s)", maps)
 				}
 				fmt.Printf("%s│%s  %s %-35s %s%-8s%s%s\n",
 					cyan, reset, icon, spec.name, statusClr, result.Status, reset, extra)
@@ -276,14 +283,25 @@ const (
 
 func statusColor(status string) string {
 	switch status {
-	case "CRITICAL", "EXPOSED":
+	case "EXPOSED":
 		return boldRed
-	case "WARNING":
+	case "LEAK":
 		return boldYlw
 	case "CLEAN":
 		return boldGrn
 	default:
 		return reset
+	}
+}
+
+// shouldFail returns true if the status warrants a non-zero exit code
+// based on the --fail-on flag.
+func shouldFail(status string) bool {
+	switch failOn {
+	case "leak":
+		return status == "EXPOSED" || status == "LEAK"
+	default: // "exposed"
+		return status == "EXPOSED"
 	}
 }
 
@@ -295,7 +313,7 @@ func printBatchResults(results []batchEntry, asJSON bool) {
 		return
 	}
 
-	var clean, warning, critical, errCount int
+	var clean, leak, exposed, errCount int
 	for _, r := range results {
 		if r.Error != "" {
 			errCount++
@@ -304,25 +322,25 @@ func printBatchResults(results []batchEntry, asJSON bool) {
 		switch r.Result.Status {
 		case "CLEAN":
 			clean++
-		case "WARNING":
-			warning++
-		case "CRITICAL":
-			critical++
+		case "LEAK":
+			leak++
+		case "EXPOSED":
+			exposed++
 		}
 	}
 
 	fmt.Printf("%s│%s\n", cyan, reset)
 	fmt.Printf("%s├─ Summary%s\n", boldCyn, reset)
 	fmt.Printf("%s│%s  Scanned:  %d\n", cyan, reset, len(results))
-	fmt.Printf("%s│%s  %s✓ Clean:    %d%s\n", cyan, reset, boldGrn, clean, reset)
-	if warning > 0 {
-		fmt.Printf("%s│%s  %s⚠ Warning:  %d%s\n", cyan, reset, boldYlw, warning, reset)
+	fmt.Printf("%s│%s  %s✓ Clean:   %d%s\n", cyan, reset, boldGrn, clean, reset)
+	if leak > 0 {
+		fmt.Printf("%s│%s  %s⚠ Leak:    %d%s  %s(.map files, no source code)%s\n", cyan, reset, boldYlw, leak, reset, dim, reset)
 	}
-	if critical > 0 {
-		fmt.Printf("%s│%s  %s✗ Critical: %d%s\n", cyan, reset, boldRed, critical, reset)
+	if exposed > 0 {
+		fmt.Printf("%s│%s  %s✗ Exposed: %d%s  %s(source code recoverable)%s\n", cyan, reset, boldRed, exposed, reset, dim, reset)
 	}
 	if errCount > 0 {
-		fmt.Printf("%s│%s  %s? Errors:   %d%s\n", cyan, reset, dim, errCount, reset)
+		fmt.Printf("%s│%s  %s? Errors:  %d%s\n", cyan, reset, dim, errCount, reset)
 	}
 	fmt.Printf("%s│%s\n", cyan, reset)
 	fmt.Printf("%s└─%s\n\n", cyan, reset)

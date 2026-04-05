@@ -2,19 +2,18 @@ package scanner
 
 // NpmResult holds the full scan result for an npm package.
 type NpmResult struct {
-	Package         string      `json:"package"`
-	Version         string      `json:"version"`
-	TarballURL      string      `json:"tarball_url,omitempty"`
-	Status          string      `json:"status"`
-	RiskScore       int         `json:"risk_score"`
-	TotalFiles      int         `json:"total_files"`
-	MapFileCount    int         `json:"map_file_count"`
-	InlineMapCount  int         `json:"inline_map_count"`
-	EmbeddedSrcCount int        `json:"embedded_source_count"`
-	TotalLinesExposed int       `json:"total_lines_exposed"`
-	TotalSourceFiles  int       `json:"total_source_files"`
-	Findings        []string    `json:"findings"`
-	MapDetails      []MapDetail `json:"map_details,omitempty"`
+	Package          string      `json:"package"`
+	Version          string      `json:"version"`
+	TarballURL       string      `json:"tarball_url,omitempty"`
+	Status           string      `json:"status"`
+	TotalFiles       int         `json:"total_files"`
+	MapFileCount     int         `json:"map_file_count"`
+	InlineMapCount   int         `json:"inline_map_count"`
+	EmbeddedSrcCount int         `json:"embedded_source_count"`
+	TotalLinesExposed int        `json:"total_lines_exposed"`
+	TotalSourceFiles  int        `json:"total_source_files"`
+	Findings         []string    `json:"findings"`
+	MapDetails       []MapDetail `json:"map_details,omitempty"`
 }
 
 // MapDetail describes a single .map file found in the package.
