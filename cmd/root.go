@@ -248,12 +248,18 @@ func scanNpmBatch(deps map[string]string) []batchEntry {
 				switch result.Status {
 				case "EXPOSED":
 					icon = red + "✗" + reset
-					extra = fmt.Sprintf("  ~%s lines of source code recoverable",
+					extra = fmt.Sprintf("  ~%s lines recoverable",
 						scanner.FormatNumber(result.TotalLinesExposed))
+					if result.IsPublicRepo {
+						extra += fmt.Sprintf("  %s(open source)%s", dim, reset)
+					}
 				case "LEAK":
 					icon = yellow + "!" + reset
 					maps := result.MapFileCount + result.InlineMapCount
 					extra = fmt.Sprintf("  %d .map file(s)", maps)
+					if result.IsPublicRepo {
+						extra += fmt.Sprintf("  %s(open source)%s", dim, reset)
+					}
 				}
 				fmt.Printf("%s│%s  %s %-35s %s%-8s%s%s\n",
 					cyan, reset, icon, spec.name, statusClr, result.Status, reset, extra)

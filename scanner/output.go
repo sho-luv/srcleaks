@@ -50,6 +50,18 @@ func PrintResult(r *NpmResult, asJSON bool, showProof bool) {
 	fmt.Printf("%s│%s  Package:    %s%s%s\n", cyan, reset, bold, r.Package, reset)
 	fmt.Printf("%s│%s  Version:    %s\n", cyan, reset, r.Version)
 	fmt.Printf("%s│%s  Status:     %s%s%s\n", cyan, reset, statusColor(r.Status), r.Status, reset)
+	if r.License != "" {
+		fmt.Printf("%s│%s  License:    %s\n", cyan, reset, r.License)
+	}
+	if r.RepoURL != "" {
+		repoLabel := r.RepoURL
+		if r.IsPublicRepo {
+			repoLabel += fmt.Sprintf("  %s(public)%s", dim, reset)
+		} else {
+			repoLabel += fmt.Sprintf("  %s(private/not found)%s", boldRed, reset)
+		}
+		fmt.Printf("%s│%s  Repository: %s\n", cyan, reset, repoLabel)
+	}
 	fmt.Printf("%s│%s\n", cyan, reset)
 	fmt.Printf("%s│%s  Files in package:  %d\n", cyan, reset, r.TotalFiles)
 	fmt.Printf("%s│%s  .map files:        %d\n", cyan, reset, r.MapFileCount)

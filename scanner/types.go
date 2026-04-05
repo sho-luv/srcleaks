@@ -5,6 +5,9 @@ type NpmResult struct {
 	Package          string      `json:"package"`
 	Version          string      `json:"version"`
 	TarballURL       string      `json:"tarball_url,omitempty"`
+	License          string      `json:"license,omitempty"`
+	RepoURL          string      `json:"repo_url,omitempty"`
+	IsPublicRepo     bool        `json:"is_public_repo"`
 	Status           string      `json:"status"`
 	TotalFiles       int         `json:"total_files"`
 	MapFileCount     int         `json:"map_file_count"`
