@@ -3,12 +3,15 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/sho-luv/srcleaks/scanner"
 	"github.com/spf13/cobra"
@@ -19,6 +22,7 @@ var (
 	showProof   bool
 	failOn      string
 	concurrency int
+	orgs        []string
 )
 
 // ExitCode is set when findings are detected.
@@ -36,6 +40,8 @@ Just give it a target — it figures out the rest:
   srcleaks ./package.json               Scan all dependencies + devDependencies
   srcleaks .                            Find package.json in current dir and scan it
   srcleaks https://example.com express  Mix and match — scan everything
+  srcleaks --org anthropic-ai           Scan all packages from an npm org
+  srcleaks --org openai --org google    Multiple orgs at once
 
 All checks run automatically. No flags needed.
 
@@ -43,8 +49,10 @@ Statuses:
   EXPOSED  Source code is recoverable (sourcesContent present)
   LEAK     .map files found but no source code (reveals paths/structure)
   CLEAN    Nothing found`,
-	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 && len(orgs) == 0 {
+			return fmt.Errorf("provide at least one target or use --org")
+		}
 		return runAll(args)
 	},
 }
@@ -53,6 +61,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output results as JSON")
 	rootCmd.Flags().BoolVar(&showProof, "proof", false, "Show recovered source code as verification")
 	rootCmd.Flags().StringVar(&failOn, "fail-on", "exposed", "Exit 1 when status matches: exposed or leak")
+	rootCmd.Flags().StringArrayVar(&orgs, "org", nil, "Scan all npm packages from an org (e.g. anthropic-ai)")
 	rootCmd.Flags().IntVarP(&concurrency, "concurrency", "c", 5, "Parallel npm package scans")
 }
 
@@ -121,6 +130,18 @@ func runAll(args []string) error {
 	var urls []string
 	var npms []string
 	var batches []string
+
+	// Resolve --org flags into package names
+	for _, org := range orgs {
+		fmt.Printf("%sDiscovering packages for @%s...%s\n", dim, org, reset)
+		pkgs, err := discoverOrgPackages(org)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s✗ @%s: %v%s\n", red, org, err, reset)
+			continue
+		}
+		fmt.Printf("%sFound %d packages for @%s%s\n", dim, len(pkgs), org, reset)
+		args = append(args, pkgs...)
+	}
 
 	// Expand all args, including target list files
 	var expanded []string
@@ -386,4 +407,105 @@ func printBatchResults(results []batchEntry, asJSON bool) {
 	}
 	fmt.Printf("%s│%s\n", cyan, reset)
 	fmt.Printf("%s└─%s\n\n", cyan, reset)
+}
+
+// discoverOrgPackages queries the npm registry for all packages under a scope.
+func discoverOrgPackages(org string) ([]string, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	scope := org
+	if !strings.HasPrefix(scope, "@") {
+		scope = "@" + scope
+	}
+
+	var allPkgs []string
+	from := 0
+	pageSize := 250
+	emptyPages := 0 // consecutive pages with no matching packages
+
+	for {
+		orgName := strings.TrimPrefix(scope, "@")
+		searchURL := fmt.Sprintf("https://registry.npmjs.org/-/v1/search?text=scope:%s&size=%d&from=%d",
+			orgName, pageSize, from)
+
+		body, err := npmSearchFetch(client, searchURL)
+		if err != nil {
+			return nil, err
+		}
+
+		var result struct {
+			Objects []struct {
+				Package struct {
+					Name string `json:"name"`
+				} `json:"package"`
+			} `json:"objects"`
+			Total int `json:"total"`
+		}
+		if err := json.Unmarshal(body, &result); err != nil {
+			return nil, fmt.Errorf("parsing npm search response: %w", err)
+		}
+
+		found := 0
+		for _, obj := range result.Objects {
+			name := obj.Package.Name
+			// Only include packages that actually belong to this scope
+			if strings.HasPrefix(name, scope+"/") {
+				allPkgs = append(allPkgs, name)
+				found++
+			}
+		}
+
+		// npm search returns fuzzy matches ranked by relevance.
+		// Stop after 2 consecutive pages with no scope matches.
+		if found == 0 {
+			emptyPages++
+		} else {
+			emptyPages = 0
+		}
+
+		from += pageSize
+		if from >= result.Total || len(result.Objects) == 0 || emptyPages >= 2 {
+			break
+		}
+	}
+
+	if len(allPkgs) == 0 {
+		return nil, fmt.Errorf("no packages found for scope %s", scope)
+	}
+
+	return allPkgs, nil
+}
+
+// npmSearchFetch fetches a URL with retry on 429 rate limits.
+func npmSearchFetch(client *http.Client, rawURL string) ([]byte, error) {
+	for attempt := 0; attempt < 4; attempt++ {
+		req, err := http.NewRequest("GET", rawURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Accept-Encoding", "identity")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode == 429 {
+			resp.Body.Close()
+			wait := time.Duration(attempt+1) * 3 * time.Second
+			fmt.Printf("%s  rate limited, retrying in %s...%s\n", dim, wait, reset)
+			time.Sleep(wait)
+			continue
+		}
+
+		if resp.StatusCode != 200 {
+			resp.Body.Close()
+			return nil, fmt.Errorf("npm search returned HTTP %d", resp.StatusCode)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return body, err
+	}
+	return nil, fmt.Errorf("npm search rate limited after retries")
 }
