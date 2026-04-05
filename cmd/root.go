@@ -155,8 +155,8 @@ func runAll(args []string) error {
 				hadFindings = true
 			}
 		}
-		// Print full details for packages that have findings
-		if !jsonOutput {
+		// Only print full per-package details when --proof is requested
+		if !jsonOutput && showProof {
 			for _, r := range results {
 				if r.Result != nil && r.Result.Status != "CLEAN" {
 					scanner.PrintResult(r.Result, false, showProof)
