@@ -19,14 +19,22 @@ type NpmResult struct {
 
 // MapDetail describes a single .map file found in the package.
 type MapDetail struct {
-	File              string   `json:"file"`
-	SizeBytes         int64    `json:"size_bytes"`
-	SizeHuman         string   `json:"size_human"`
-	ValidJSON         bool     `json:"valid_json"`
-	SourcesCount      int      `json:"sources_count"`
-	HasSourcesContent bool     `json:"has_sources_content"`
-	LinesExposed      int      `json:"lines_exposed,omitempty"`
-	SampleSources     []string `json:"sample_sources,omitempty"`
+	File              string          `json:"file"`
+	SizeBytes         int64           `json:"size_bytes"`
+	SizeHuman         string          `json:"size_human"`
+	ValidJSON         bool            `json:"valid_json"`
+	SourcesCount      int             `json:"sources_count"`
+	HasSourcesContent bool            `json:"has_sources_content"`
+	LinesExposed      int             `json:"lines_exposed,omitempty"`
+	SampleSources     []string        `json:"sample_sources,omitempty"`
+	Proof             []SourcePreview `json:"proof,omitempty"`
+}
+
+// SourcePreview shows a snippet of recovered source code as proof.
+type SourcePreview struct {
+	Path    string   `json:"path"`
+	Lines   int      `json:"lines"`
+	Preview []string `json:"preview"`
 }
 
 // URLResult holds the scan result for a website URL.
@@ -53,6 +61,8 @@ type ScriptInfo struct {
 	SourcesCount     int    `json:"sources_count,omitempty"`
 	HasSourceContent bool   `json:"has_source_content,omitempty"`
 	LinesExposed     int    `json:"lines_exposed,omitempty"`
-	InlineMap        bool   `json:"inline_map,omitempty"`
-	Probed           bool   `json:"probed,omitempty"`
+	InlineMap        bool            `json:"inline_map,omitempty"`
+	Probed           bool            `json:"probed,omitempty"`
+	SampleSources    []string        `json:"sample_sources,omitempty"`
+	Proof            []SourcePreview `json:"proof,omitempty"`
 }

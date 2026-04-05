@@ -128,14 +128,13 @@ func scanScript(scriptURL string, baseURL *url.URL, probe bool) ScriptInfo {
 	if inlineData := extractInlineSourceMap(jsBody); inlineData != nil {
 		info.InlineMap = true
 		info.HasMapRef = true
-		var sm sourceMapJSON
-		if json.Unmarshal(inlineData, &sm) == nil {
-			info.SourcesCount = len(sm.Sources)
-			for _, sc := range sm.SourcesContent {
-				if strings.TrimSpace(sc) != "" {
-					info.HasSourceContent = true
-					info.LinesExposed += strings.Count(sc, "\n") + 1
-				}
+		if a := AnalyzeSourceMap(inlineData); a != nil {
+			info.SourcesCount = a.TotalSources
+			info.SampleSources = a.SampleSources
+			info.LinesExposed = a.LinesExposed
+			info.Proof = a.Proof
+			if a.LinesExposed > 0 {
+				info.HasSourceContent = true
 			}
 		}
 		return info
@@ -197,13 +196,15 @@ func probeMapURL(scriptURL string, info *ScriptInfo) {
 		info.MapAccessible = true
 		info.MapSizeBytes = mapSize
 		info.MapSizeHuman = humanSize(mapSize)
-		info.SourcesCount = len(sm.Sources)
 		info.Probed = true
 
-		for _, sc := range sm.SourcesContent {
-			if strings.TrimSpace(sc) != "" {
+		if a := AnalyzeSourceMap([]byte(mapBody)); a != nil {
+			info.SourcesCount = a.TotalSources
+			info.SampleSources = a.SampleSources
+			info.LinesExposed = a.LinesExposed
+			info.Proof = a.Proof
+			if a.LinesExposed > 0 {
 				info.HasSourceContent = true
-				info.LinesExposed += strings.Count(sc, "\n") + 1
 			}
 		}
 		return // Found one, stop probing
@@ -221,14 +222,13 @@ func tryFetchMap(mapFullURL string, info *ScriptInfo) {
 	info.MapSizeBytes = mapSize
 	info.MapSizeHuman = humanSize(mapSize)
 
-	var sm sourceMapJSON
-	if json.Unmarshal([]byte(mapBody), &sm) == nil {
-		info.SourcesCount = len(sm.Sources)
-		for _, sc := range sm.SourcesContent {
-			if strings.TrimSpace(sc) != "" {
-				info.HasSourceContent = true
-				info.LinesExposed += strings.Count(sc, "\n") + 1
-			}
+	if a := AnalyzeSourceMap([]byte(mapBody)); a != nil {
+		info.SourcesCount = a.TotalSources
+		info.SampleSources = a.SampleSources
+		info.LinesExposed = a.LinesExposed
+		info.Proof = a.Proof
+		if a.LinesExposed > 0 {
+			info.HasSourceContent = true
 		}
 	}
 }

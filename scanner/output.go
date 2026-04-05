@@ -94,9 +94,49 @@ func PrintResult(r *NpmResult, asJSON bool) {
 		}
 	}
 
+	// Proof section — show recovered source code
+	printNpmProof(r)
+
 	fmt.Printf("%s│%s\n", cyan, reset)
 	fmt.Printf("%s└─%s\n", cyan, reset)
 	fmt.Println()
+}
+
+func printNpmProof(r *NpmResult) {
+	// Collect all proof from all map details
+	var allProof []SourcePreview
+	for _, d := range r.MapDetails {
+		allProof = append(allProof, d.Proof...)
+	}
+	if len(allProof) == 0 {
+		return
+	}
+
+	// Show up to 3 proof snippets total
+	limit := 3
+	if len(allProof) < limit {
+		limit = len(allProof)
+	}
+
+	fmt.Printf("%s│%s\n", cyan, reset)
+	fmt.Printf("%s├─ Proof — Recovered Source Code%s\n", boldCyn, reset)
+	fmt.Printf("%s│%s\n", cyan, reset)
+
+	for i := 0; i < limit; i++ {
+		p := allProof[i]
+		fmt.Printf("%s│%s  %s%s%s  %s(%d lines)%s\n", cyan, reset, yellow, p.Path, reset, dim, p.Lines, reset)
+		for _, line := range p.Preview {
+			// Truncate long lines
+			display := line
+			if len(display) > 90 {
+				display = display[:87] + "..."
+			}
+			fmt.Printf("%s│%s    %s%s%s\n", cyan, reset, dim, display, reset)
+		}
+		if i < limit-1 {
+			fmt.Printf("%s│%s\n", cyan, reset)
+		}
+	}
 }
 
 func PrintURLResult(r *URLResult, asJSON bool) {
@@ -160,9 +200,46 @@ func PrintURLResult(r *URLResult, asJSON bool) {
 					cyan, reset, red, s.SourcesCount, FormatNumber(s.LinesExposed), reset)
 			}
 		}
+
+		// Print proof from URL results
+		printURLProof(exposed)
 	}
 
 	fmt.Printf("%s│%s\n", cyan, reset)
 	fmt.Printf("%s└─%s\n", cyan, reset)
 	fmt.Println()
+}
+
+func printURLProof(scripts []ScriptInfo) {
+	var allProof []SourcePreview
+	for _, s := range scripts {
+		allProof = append(allProof, s.Proof...)
+	}
+	if len(allProof) == 0 {
+		return
+	}
+
+	limit := 3
+	if len(allProof) < limit {
+		limit = len(allProof)
+	}
+
+	fmt.Printf("%s│%s\n", cyan, reset)
+	fmt.Printf("%s├─ Proof — Recovered Source Code%s\n", boldCyn, reset)
+	fmt.Printf("%s│%s\n", cyan, reset)
+
+	for i := 0; i < limit; i++ {
+		p := allProof[i]
+		fmt.Printf("%s│%s  %s%s%s  %s(%d lines)%s\n", cyan, reset, yellow, p.Path, reset, dim, p.Lines, reset)
+		for _, line := range p.Preview {
+			display := line
+			if len(display) > 90 {
+				display = display[:87] + "..."
+			}
+			fmt.Printf("%s│%s    %s%s%s\n", cyan, reset, dim, display, reset)
+		}
+		if i < limit-1 {
+			fmt.Printf("%s│%s\n", cyan, reset)
+		}
+	}
 }

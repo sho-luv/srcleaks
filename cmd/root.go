@@ -153,6 +153,14 @@ func runAll(args []string) error {
 				hadFindings = true
 			}
 		}
+		// Print full details with proof for packages that have findings
+		if !jsonOutput {
+			for _, r := range results {
+				if r.Result != nil && r.Result.Status != "CLEAN" {
+					scanner.PrintResult(r.Result, false)
+				}
+			}
+		}
 	}
 
 	if hadFindings {
